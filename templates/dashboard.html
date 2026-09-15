@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Credit AI Dashboard</title>
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Segoe UI", sans-serif; background: #f3f4f6; color: #171717; }
+    .container { display: flex; min-height: 100vh; }
+
+    .sidebar {
+        width: 180px;
+        flex: 0 0 180px;
+        background: #fff;
+        padding: 30px 14px;
+        min-height: 100vh;
+        box-shadow: 2px 0 10px rgba(0,0,0,.04);
+    }
+    .sidebar h2 { margin: 0 0 16px; color: #2630a8; font-size: 17px; }
+    .sidebar a { color: #222; text-decoration: none; font-size: 11px; display: block; margin-top: 10px; }
+    .sidebar a:hover { color: #2630a8; }
+
+    .main { flex: 1; padding: 14px; min-width: 0; }
+    .card {
+        background: #fff;
+        padding: 16px;
+        border-radius: 13px;
+        margin-bottom: 13px;
+        box-shadow: 0 4px 15px rgba(0,0,0,.045);
+    }
+    .card h3 { margin: 0 0 13px; font-size: 13px; }
+    .metric { font-size: 11px; font-weight: 700; margin: 0 0 9px; }
+    .submetric { font-size: 10px; margin: 0; }
+    .high { color: #dc2626; }
+    .low { color: #16a34a; }
+    .borderline { color: #f59e0b; }
+
+    .chart-wrap { width: 100%; height: 390px; }
+    .chart-fallback { font-size: 10px; color: #555; }
+    .fallback-row { display:grid; grid-template-columns:150px 1fr 48px; gap:7px; align-items:center; margin:7px 0; }
+    .fallback-track { height:10px; background:#e5e7eb; border-radius:5px; overflow:hidden; }
+    .fallback-track i { display:block; height:100%; border-radius:5px; }
+    ul { font-size: 10px; line-height: 1.6; padding-left: 17px; margin: 0; }
+    .muted { color: #6b7280; font-size: 9px; }
+    button {
+        padding: 9px 14px; background: #2630a8; color: #fff; border: 0;
+        border-radius: 7px; cursor: pointer; font-size: 10px; font-weight: 700;
+    }
+    .letter { font-size: 10px; line-height: 1.55; }
+    .letter-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn-secondary { background:#fff; color:#2630a8; border:1px solid #2630a8; }
+    .modal-backdrop {
+        position:fixed; inset:0; background:rgba(0,0,0,.45); display:none;
+        align-items:center; justify-content:center; z-index:9999; padding:18px;
+    }
+    .modal-backdrop.open { display:flex; }
+    .letter-modal {
+        width:min(620px, 100%); max-height:90vh; overflow:auto; background:#fff;
+        border-radius:14px; padding:22px; box-shadow:0 18px 50px rgba(0,0,0,.25);
+    }
+    .modal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .modal-head h2 { margin:0; font-size:16px; }
+    .close-btn { background:#f3f4f6; color:#333; font-size:16px; padding:4px 10px; }
+    .letter-paper { border:1px solid #e5e7eb; border-radius:8px; padding:18px; font-size:11px; line-height:1.7; }
+    .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; }
+    @media print {
+        body * { visibility:hidden !important; }
+        #letterModal, #letterModal * { visibility:visible !important; }
+        #letterModal { position:absolute !important; inset:0 !important; display:block !important; background:#fff !important; padding:0 !important; }
+        .letter-modal { box-shadow:none !important; width:100% !important; max-height:none !important; }
+        .modal-actions, .close-btn { display:none !important; }
+    }
+
+    @media (max-width: 700px) {
+        .container { display: block; }
+        .sidebar { width: 100%; min-height: auto; padding: 16px; }
+        .sidebar a { display: inline-block; }
+        .main { padding: 10px; }
+        .chart-wrap { height: 330px; }
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <aside class="sidebar">
+        <h2>💳 Credit AI</h2>
+        <a href="/">&larr; New Application</a>
+    </aside>
+
+    <main class="main" id="app"></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const result = {{ result|tojson }};
+const root = document.getElementById('app');
+const risk = result.risk_probability;
+const shap = result.shap_features || [];
+const rec = result.recommendations || [];
+
+root.innerHTML = `
+    <div class="card">
+        <h3>📊 Model Risk Assessment</h3>
+        <p class="metric ${result.risk_grade === 'HIGH' ? 'high' : result.risk_grade === 'MEDIUM' ? 'borderline' : 'low'}">${result.risk_grade} — ${result.prediction}</p>
+        <p class="submetric">Model high-risk probability: ${risk}% &nbsp;|&nbsp; Model low-risk probability: ${result.low_risk_probability}%</p>
+    </div>
+
+    <div class="card">
+        <h3>💰 Financial Snapshot</h3>
+        <p class="submetric">Monthly income: ₹${Number(result.features["Monthly Income"]).toLocaleString('en-IN')}</p>
+        <p class="submetric">Credit score: ${result.features["Credit Score"]}</p>
+        <p class="submetric">Requested amount: ₹${Number(result.features["Credit Amount"]).toLocaleString('en-IN')}</p>
+        <p class="submetric">Existing monthly debt: ₹${Number(result.features["Existing Monthly Debt"]).toLocaleString('en-IN')}</p>
+        <p class="submetric">DTI: ${result.features.DTI}% &nbsp;|&nbsp; Proposed EMI: ₹${Number(result.features.EMI).toLocaleString('en-IN')} &nbsp;|&nbsp; EMI/Income: ${result.features.EMI_to_Income}%</p>
+    </div>
+
+    <div class="card">
+        <h3>🏦 Final Loan Decision</h3>
+        <p class="metric" style="color:${result.decision_color}">${result.decision_icon} ${result.decision_label}</p>
+        <p class="submetric"><b>Decision basis:</b> ${result.decision_reason}</p>
+        <p class="muted"><b>Decision source:</b> ${result.decision_source}</p>
+        <p class="muted">The model risk score and the final policy decision are shown separately. An affordability rule can reject an application even when the model risk grade is LOW.</p>
+    </div>
+
+    <div class="card">
+        <h3>🤖 Model Performance</h3>
+        <p class="submetric">Algorithm: <b>${result.model_metrics?.algorithm || 'Random Forest'}</b></p>
+        <p class="submetric">Test Accuracy: <b>${result.model_metrics?.test_accuracy != null ? (result.model_metrics.test_accuracy * 100).toFixed(1) + '%' : 'N/A'}</b></p>
+        <p class="submetric">ROC-AUC: <b>${result.model_metrics?.roc_auc != null ? Number(result.model_metrics.roc_auc).toFixed(3) : 'N/A'}</b></p>
+        <p class="submetric">5-fold CV: <b>${result.model_metrics?.cv_mean != null ? (result.model_metrics.cv_mean * 100).toFixed(1) + '% ± ' + (Number(result.model_metrics.cv_std) * 100).toFixed(1) + '%' : 'N/A'}</b></p>
+        <p class="submetric">Explainability: <b>${result.model_metrics?.explainability || 'SHAP'}</b></p>
+    </div>
+
+    <div class="card">
+        <h3>⚖️ Risk Policy</h3>
+        <p class="submetric"><b>&lt; ${result.policy.approve_below_pct}%</b> → LOW risk / Approve</p>
+        <p class="submetric"><b>${result.policy.approve_below_pct}%–&lt; ${result.policy.manual_review_below_pct}%</b> → MEDIUM risk / Manual Review</p>
+        <p class="submetric"><b>≥ ${result.policy.manual_review_below_pct}%</b> → HIGH risk / Reject</p>
+        <p class="muted">${result.policy.note}</p>
+        <p class="muted">Production credit systems calibrate and validate cutoffs against portfolio outcomes, risk appetite, affordability and applicable governance/regulation.</p>
+    </div>
+
+    <div class="card">
+        <h3>📊 Feature Impact</h3>
+        <div class="chart-wrap"><canvas id="chart"></canvas><div id="fallback" class="chart-fallback"></div></div>
+    </div>
+
+    <div class="card">
+        <h3>Why did the model score this way?</h3>
+        <ul id="whyList"></ul>
+    </div>
+
+    <div class="card">
+        <h3>Recommendations</h3>
+        <ul>${rec.map(r => `<li>${r}</li>`).join('')}</ul>
+    </div>
+
+    <div class="card">
+        <h3>Loan Decision Letter</h3>
+        <p class="submetric">Your final decision letter is ready.</p>
+        <br>
+        <div class="letter-actions">
+            <button onclick="openLetter()">View Letter</button>
+            <button class="btn-secondary" onclick="downloadLetter()">Download TXT</button>
+        </div>
+    </div>
+
+    <div id="letterModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="letterTitle">
+        <div class="letter-modal">
+            <div class="modal-head">
+                <h2 id="letterTitle">Loan Decision Letter</h2>
+                <button class="close-btn" onclick="closeLetter()" aria-label="Close">&times;</button>
+            </div>
+            <div id="letter" class="letter-paper"></div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="downloadLetter()">Download TXT</button>
+                <button onclick="printLetter()">Print Letter</button>
+            </div>
+        </div>
+    </div>
+`;
+
+const whyList = document.getElementById('whyList');
+if (shap.length) {
+    shap.slice(0, 5).forEach(f => {
+        const li = document.createElement('li');
+        li.textContent = `${f.name} ${f.value >= 0 ? 'increased' : 'decreased'} risk (impact ${Number(f.value).toFixed(3)})`;
+        whyList.appendChild(li);
+    });
+} else {
+    whyList.innerHTML = '<li>No major risk factors detected.</li>';
+}
+
+function drawChart() {
+    const canvas = document.getElementById('chart');
+    if (!shap.length) {
+        document.getElementById('fallback').textContent = 'No feature-impact data available.';
+        return;
+    }
+    if (!window.Chart) {
+        // Offline fallback: keep the dashboard usable even if the CDN is unavailable.
+        const box = document.getElementById('fallback');
+        box.innerHTML = shap.slice(0, 8).map(f => {
+            const width = Math.min(100, Math.max(4, Math.abs(Number(f.value)) * 100));
+            return `<div class="fallback-row"><span>${f.name}</span><div class="fallback-track"><i style="width:${width}%;background:${f.value >= 0 ? '#16a34a' : '#dc2626'}"></i></div><b>${Number(f.value).toFixed(3)}</b></div>`;
+        }).join('');
+        return;
+    }
+
+    new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: shap.slice(0, 8).map(f => f.name),
+            datasets: [{
+                label: 'Feature Impact',
+                data: shap.slice(0, 8).map(f => f.value),
+                backgroundColor: shap.slice(0, 8).map(f => f.value >= 0 ? '#16a34a' : '#dc2626'),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: false, grid: { color: '#e5e7eb' }, ticks: { font: { size: 9 } } },
+                x: { grid: { color: '#edf0f2' }, ticks: { font: { size: 8 }, maxRotation: 0, minRotation: 0 } }
+            },
+            plugins: {
+                legend: { display: true, labels: { boxWidth: 25, font: { size: 9 } } }
+            }
+        }
+    });
+}
+setTimeout(drawChart, 0);
+
+const letterDiv = document.getElementById('letter');
+let verdict = result.decision_label === 'APPROVED'
+    ? 'approved'
+    : result.decision_label === 'NEEDS REVIEW' ? 'placed under manual review' : 'rejected';
+
+letterDiv.innerHTML = `
+    <p><b>Subject:</b> Loan Application Status</p>
+    <p>Dear Applicant,</p>
+    <p>Your loan application has been <b style="color:${result.decision_color};">${verdict}</b>.</p>
+    <p>Model High-Risk Probability: <b>${risk}%</b></p>
+    <p>Risk Grade: <b>${result.risk_grade}</b></p>
+    <p>Recommended Action: <b>${result.decision_label}</b></p>
+    <p>Decision Source: <b>${result.decision_source}</b></p>
+    <p>Sincerely,<br><b>Credit AI System</b></p>
+`;
+
+function openLetter() {
+    document.getElementById('letterModal').classList.add('open');
+}
+
+function closeLetter() {
+    document.getElementById('letterModal').classList.remove('open');
+}
+
+function printLetter() {
+    window.print();
+}
+
+function downloadLetter() {
+    const text = letterDiv.innerText.trim() + "\n";
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Loan_Decision.txt';
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(link.href);
+    link.remove();
+}
+
+document.getElementById('letterModal').addEventListener('click', function(e) {
+    if (e.target === this) closeLetter();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLetter();
+});
+</script>
+</body>
+</html>

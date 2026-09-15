@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Credit Risk AI</title>
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Segoe UI", sans-serif; background: #f5f6f8; color: #171717; }
+    .container { display: flex; min-height: 100vh; }
+
+    .left {
+        width: 52.5%;
+        min-height: 100vh;
+        padding: 40px;
+        background: linear-gradient(135deg, #2826a6 0%, #5d236f 48%, #c51732 100%);
+        color: white;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+    }
+    .brand { margin-top: 34px; }
+    .left h1 { font-size: 36px; line-height: 1.1; margin: 0 0 26px; font-weight: 700; }
+    .left p { font-size: 12px; margin: 0; opacity: .95; }
+    .left .note { margin-top: 22px; font-size: 11px; opacity: .72; max-width: 430px; line-height: 1.5; }
+
+    .form-box {
+        width: 47.5%;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 28px 22px;
+        background: #f7f8fa;
+    }
+
+    .card {
+        width: 355px;
+        padding: 28px 20px 20px;
+        border-radius: 15px;
+        background: white;
+        box-shadow: 0 7px 25px rgba(0,0,0,.09);
+        max-height: 96vh;
+        overflow-y: auto;
+    }
+
+    h2 { font-size: 17px; margin: 10px 0 18px; }
+    label { font-size: 11px; font-weight: 600; display: block; margin-top: 10px; }
+    input, select {
+        width: 100%;
+        height: 30px;
+        padding: 5px 10px;
+        margin: 4px 0 0;
+        border-radius: 8px;
+        border: 1px solid #9a9a9a;
+        background: white;
+        font-size: 10px;
+        color: #222;
+    }
+    input:focus, select:focus { outline: 1px solid #2826a6; border-color: #2826a6; }
+    button {
+        width: 100%;
+        height: 31px;
+        margin-top: 11px;
+        background: #252ca7;
+        color: white;
+        border: none;
+        border-radius: 7px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 10px;
+    }
+    button:hover { filter: brightness(.95); }
+
+    .error { background: #fff1f1; color: #a51f1f; padding: 9px; border-radius: 7px; margin-bottom: 10px; font-size: 10px; }
+    .result {
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        border-left: 4px solid {{ result.decision_color if result else '#6b7280' }};
+        background: {{ (result.decision_color + '1a') if result else 'transparent' }};
+    }
+    .result h3 { margin: 0 0 6px; color: {{ result.decision_color if result else '#111827' }}; font-size: 13px; }
+    .result p { margin: 4px 0; font-size: 10px; }
+    .result ul { margin: 7px 0 0; padding-left: 16px; font-size: 9px; }
+    .btn-secondary {
+        height: 31px; line-height: 31px; margin-top: 8px; background: #252ca7;
+        color: white; border-radius: 7px; text-decoration: none; display: block;
+        text-align: center; font-weight: 700; font-size: 10px;
+    }
+
+    .logo-mark {
+        position: fixed; left: 218px; bottom: 0; width: 50px; height: 50px;
+        border-radius: 11px 11px 0 0; background: rgba(255,255,255,.12);
+        border: 2px solid rgba(255,255,255,.18); display: flex;
+        align-items: center; justify-content: center; font-size: 25px; font-weight: 800;
+    }
+
+    @media (max-width: 800px) {
+        .container { flex-direction: column; }
+        .left, .form-box { width: 100%; min-height: auto; }
+        .left { padding: 45px 24px 30px; }
+        .brand { margin-top: 0; }
+        .form-box { padding: 22px 12px; }
+        .card { width: min(355px, 100%); }
+        .logo-mark { display: none; }
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <section class="left">
+        <div class="brand">
+            <h1>Credit Risk AI</h1>
+            <p>Smart Loan Risk Assessment System</p>
+        </div>
+        <p class="note">AI-assisted credit risk assessment using Random Forest and SHAP explainability.</p>
+    </section>
+
+    <section class="form-box">
+        <div class="card">
+            <h2>Applicant Details</h2>
+
+            {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+            <form action="/predict" method="POST">
+                <label for="age">Age</label>
+                <input id="age" type="number" name="age" min="18" max="100"
+                       value="{{ form_data.get('age','35') if form_data else '35' }}" required>
+
+                <label for="gender">Gender</label>
+                <select id="gender" name="gender">
+                    {% for x in ['male','female'] %}
+                    <option value="{{x}}" {% if (form_data.get('gender','male') if form_data else 'male')==x %}selected{% endif %}>{{x|capitalize}}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="job">Job Category</label>
+                <select id="job" name="job">
+                    {% for x, label in [('0','Unskilled (non-resident)'), ('1','Unskilled (resident)'), ('2','Skilled'), ('3','Highly Skilled / Management')] %}
+                    <option value="{{x}}" {% if (form_data.get('job','2') if form_data else '2')==x %}selected{% endif %}>{{label}}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="housing">Housing</label>
+                <select id="housing" name="housing">
+                    {% for x in ['own','rent','free'] %}
+                    <option value="{{x}}" {% if (form_data.get('housing','own') if form_data else 'own')==x %}selected{% endif %}>{{x|capitalize}}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="income">Monthly Income (₹)</label>
+                <input id="income" type="number" name="income" min="1000" step="100"
+                       value="{{ form_data.get('income','') if form_data else '' }}" required>
+
+                <label for="credit_score">Credit Score (300 - 850)</label>
+                <input id="credit_score" type="number" name="credit_score" min="300" max="850"
+                       value="{{ form_data.get('credit_score','') if form_data else '' }}" required>
+
+                <label for="existing_monthly_debt">Existing Monthly Debt Payment (₹)</label>
+                <input id="existing_monthly_debt" type="number" name="existing_monthly_debt" min="0" step="100"
+                       value="{{ form_data.get('existing_monthly_debt','0') if form_data else '0' }}" required>
+
+                <label for="savings">Savings</label>
+                <select id="savings" name="savings">
+                    {% for x in ['low','moderate','high'] %}
+                    <option value="{{x}}" {% if (form_data.get('savings','low') if form_data else 'low')==x %}selected{% endif %}>{{x|capitalize}} Savings</option>
+                    {% endfor %}
+                </select>
+
+                <label for="account_balance">Account Balance</label>
+                <select id="account_balance" name="account_balance">
+                    {% for x in ['low','moderate','high'] %}
+                    <option value="{{x}}" {% if (form_data.get('account_balance','low') if form_data else 'low')==x %}selected{% endif %}>{{x|capitalize}} Balance</option>
+                    {% endfor %}
+                </select>
+
+                <label for="amount">Requested Loan Amount (₹)</label>
+                <input id="amount" type="number" name="amount" min="1000" step="100"
+                       value="{{ form_data.get('amount','') if form_data else '' }}" required>
+
+                <label for="duration">Loan Duration (months)</label>
+                <input id="duration" type="number" name="duration" min="1" max="360"
+                       value="{{ form_data.get('duration','') if form_data else '' }}" required>
+
+                <label for="purpose">Loan Purpose</label>
+                <select id="purpose" name="purpose">
+                    {% for x in ['business','car','domestic appliances','education','furniture/equipment','radio/TV','repairs','vacation/others'] %}
+                    <option value="{{x}}" {% if (form_data.get('purpose','car') if form_data else 'car')==x %}selected{% endif %}>{{x|capitalize}}</option>
+                    {% endfor %}
+                </select>
+
+                <button type="submit">Analyze Risk</button>
+            </form>
+
+            {% if result %}
+            <div class="result">
+                <h3>{{ result.decision_icon }} {{ result.decision_label }}</h3>
+                <p>Model high-risk probability: {{ result.risk_probability }}% ({{ result.risk_grade }} — {{ result.prediction }})</p>
+                <p>Recommended action: <b>{{ result.decision_label }}</b></p>
+                <p><b>Decision basis:</b> {{ result.decision_reason }}</p>
+                {% if result.recommendations %}
+                <ul>
+                    {% for tip in result.recommendations %}
+                    <li>{{ tip }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            <a class="btn-secondary" href="/dashboard">View Dashboard &rarr;</a>
+            {% endif %}
+        </div>
+    </section>
+</div>
+<div class="logo-mark">⚡</div>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "algorithm": "Random Forest",
+  "train_accuracy": 0.905,
+  "test_accuracy": 0.73,
+  "roc_auc": 0.7877,
+  "precision_high_risk": 0.5429,
+  "recall_high_risk": 0.6333,
+  "f1_high_risk": 0.5846,
+  "confusion_matrix": [
+    [
+      108,
+      32
+    ],
+    [
+      22,
+      38
+    ]
+  ],
+  "cv_mean": 0.741,
+  "cv_std": 0.0237,
+  "explainability": "SHAP",
+  "decision_policy": {
+    "approve_below_pct": 55.0,
+    "manual_review_below_pct": 75.0
+  },
+  "policy_note": "Thresholds are configurable portfolio-demo policy values, not regulatory standards."
+}
